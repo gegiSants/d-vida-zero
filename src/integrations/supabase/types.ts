@@ -14,7 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      extras: {
+        Row: {
+          created_at: string
+          id: string
+          item: string
+          user_id: string
+          valor_mensal: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item: string
+          user_id: string
+          valor_mensal: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item?: string
+          user_id?: string
+          valor_mensal?: number
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          created_at: string
+          id: string
+          item: string
+          ja_pago: number
+          origem: string
+          parcelas: number
+          start_date: string
+          tipo: string
+          total: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item: string
+          ja_pago?: number
+          origem?: string
+          parcelas?: number
+          start_date?: string
+          tipo: string
+          total: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item?: string
+          ja_pago?: number
+          origem?: string
+          parcelas?: number
+          start_date?: string
+          tipo?: string
+          total?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          reserva: number
+          salario: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          reserva?: number
+          salario?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reserva?: number
+          salario?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
