@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { brl } from "@/lib/format";
+import { EditPaymentDialog } from "./EditPaymentDialog";
 
 interface Props {
   payments: DBPayment[];
@@ -31,6 +32,8 @@ export const PaymentsTable = ({ payments, onUpdate, onRemove }: Props) => {
           <TableRow className="hover:bg-transparent">
             <TableHead>Item</TableHead>
             <TableHead>Tipo</TableHead>
+            <TableHead>Categoria</TableHead>
+            <TableHead>Tipo Fin.</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="text-right">Parcela</TableHead>
             <TableHead className="w-[180px]">Progresso</TableHead>
@@ -51,6 +54,12 @@ export const PaymentsTable = ({ payments, onUpdate, onRemove }: Props) => {
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="bg-accent text-accent-foreground">{p.tipo}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{p.categoria}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{p.tipo_financeiro}</Badge>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{brl(p.total)}</TableCell>
                 <TableCell className="text-right tabular-nums font-semibold text-primary">{brl(valorParcela)}</TableCell>
@@ -75,10 +84,13 @@ export const PaymentsTable = ({ payments, onUpdate, onRemove }: Props) => {
                   <div className="text-xs text-muted-foreground">{falta} {falta === 1 ? "parcela" : "parcelas"}</div>
                 </TableCell>
                 <TableCell>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => onRemove(p.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <EditPaymentDialog payment={p} onUpdate={onUpdate} />
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => onRemove(p.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             );

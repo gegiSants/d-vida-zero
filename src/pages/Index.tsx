@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { ReserveCard } from "@/components/ReserveCard";
 import { Charts } from "@/components/Charts";
 import { Timeline } from "@/components/Timeline";
 import { AdvisorChat } from "@/components/AdvisorChat";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles, Wallet, TrendingDown, Calendar, LogOut } from "lucide-react";
 import { useEffect } from "react";
 
@@ -19,6 +20,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
   const fd = useFinanceData();
+  const [tabAtivo, setTabAtivo] = useState("ativas");
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth", { replace: true });
@@ -35,6 +37,9 @@ const Index = () => {
     return { totalDevido, totalGeral, mensalDividas };
   }, [fd.payments]);
 
+  const pagamentosAtivos = fd.payments.filter(p => p.ja_pago < p.parcelas);
+  const pagamentosPagos = fd.payments.filter(p => p.ja_pago === p.parcelas);
+
   const snapshot = useMemo(() => ({
     salario: fd.profile.salario,
     reserva: fd.profile.reserva,
@@ -42,7 +47,7 @@ const Index = () => {
     compromisso_mensal_dividas: Math.round(stats.mensalDividas),
     despesas_extras_mensais: fd.extras.map((e) => ({ item: e.item, valor: Number(e.valor_mensal) })),
     dividas: fd.payments.map((p) => ({
-      item: p.item, tipo: p.tipo, total: Number(p.total),
+      item: p.item, tipo: p.tipo, categoria: p.categoria, tipo_financeiro: p.tipo_financeiro, total: Number(p.total),
       parcelas: p.parcelas, ja_pago: p.ja_pago,
       parcela_mensal: Math.round(p.total / p.parcelas),
       falta_pagar: Math.round((p.total / p.parcelas) * (p.parcelas - p.ja_pago)),
@@ -84,7 +89,18 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <Card className="lg:col-span-2 p-6 border-0 shadow-soft">
             <h2 className="text-lg font-semibold mb-4">📋 Suas dívidas</h2>
-            <PaymentsTable payments={fd.payments} onUpdate={fd.updatePayment} onRemove={fd.removePayment} />
+            <Tabs value={tabAtivo} onValueChange={setTabAtivo}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="ativas">Ativas ({pagamentosAtivos.length})</TabsTrigger>
+                <TabsTrigger value="pagas">Pagas ({pagamentosPagos.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="ativas" className="mt-4">
+                <PaymentsTable payments={pagamentosAtivos} onUpdate={fd.updatePayment} onRemove={fd.removePayment} />
+              </TabsContent>
+              <TabsContent value="pagas" className="mt-4">
+                <PaymentsTable payments={pagamentosPagos} onUpdate={fd.updatePayment} onRemove={fd.removePayment} />
+              </TabsContent>
+            </Tabs>
           </Card>
 
           <MonthlyCommitments

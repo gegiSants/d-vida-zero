@@ -1,12 +1,61 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Bot, Send, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+const TypingIndicator = () => (
+  <div className="flex items-center gap-1 p-3 rounded-2xl bg-secondary mr-8 w-fit" aria-label="Consultora digitando">
+    {[0, 150, 300].map((delay) => (
+      <span
+        key={delay}
+        className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+        style={{ animationDelay: `${delay}ms` }}
+      />
+    ))}
+  </div>
+);
+
+const buildErrorPayload = (
+  erro: string,
+  status: number | null,
+  pergunta: string,
+  historico: Msg[],
+  snapshot: Record<string, unknown>
+) =>
+  JSON.stringify(
+    {
+      erro,
+      status,
+      timestamp: new Date().toISOString(),
+      pergunta,
+      historico_chat: historico,
+      snapshot_financeiro: snapshot,
+    },
+    null,
+    2
+  );
+
+const notifyAiError = (mensagem: string, json: string) => {
+  toast.error(mensagem, {
+    duration: 12000,
+    action: {
+      label: "Copiar JSON",
+      onClick: () => {
+        navigator.clipboard.writeText(json).then(
+          () => toast.success("JSON copiado — cole em outra IA para análise."),
+          () => toast.error("Não foi possível copiar. Veja o console (F12).")
+        );
+      },
+    },
+  });
+  console.error("[Consultora IA]", mensagem, json);
+};
 
 interface Props {
   snapshot: Record<string, unknown>;
@@ -19,15 +68,26 @@ const SUGGESTIONS = [
 ];
 
 export const AdvisorChat = ({ snapshot }: Props) => {
+  const { session } = useAuth();
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, loading]);
+
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    if (!session?.access_token) {
+      toast.error("Sessão ainda não carregou. Aguarde alguns segundos e tente de novo.");
+      return;
+    }
     const userMsg: Msg = { role: "user", content: text };
-    setMessages((m) => [...m, userMsg]);
+    const historico = [...messages, userMsg];
+    setMessages(historico);
     setInput("");
     setLoading(true);
 
@@ -37,53 +97,47 @@ export const AdvisorChat = ({ snapshot }: Props) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ messages: [...messages, userMsg], snapshot }),
+        body: JSON.stringify({ messages: historico, snapshot }),
       });
 
-      if (!resp.ok || !resp.body) {
-        if (resp.status === 429) toast.error("Muitas requisições. Tente novamente em instantes.");
-        else if (resp.status === 402) toast.error("Créditos da IA esgotados.");
-        else toast.error("Erro ao falar com a consultora.");
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null);
+        const erroMsg =
+          resp.status === 429
+            ? "Muitas requisições. Tente novamente em instantes."
+            : resp.status === 402
+              ? "Créditos da IA esgotados."
+              : (payload?.error as string) || "Erro ao falar com a consultora.";
+        notifyAiError(
+          erroMsg,
+          buildErrorPayload(erroMsg, resp.status, text, historico, snapshot)
+        );
         setLoading(false);
         return;
       }
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      let acc = "";
-      setMessages((m) => [...m, { role: "assistant", content: "" }]);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buf.indexOf("\n")) !== -1) {
-          let line = buf.slice(0, nl);
-          buf = buf.slice(nl + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (json === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(json);
-            const c = parsed.choices?.[0]?.delta?.content;
-            if (c) {
-              acc += c;
-              setMessages((m) => m.map((x, i) => (i === m.length - 1 ? { ...x, content: acc } : x)));
-              scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-            }
-          } catch {
-            buf = line + "\n" + buf;
-            break;
-          }
-        }
+      const payload = await resp.json();
+      if (payload?.error) {
+        const erroMsg = String(payload.error);
+        notifyAiError(
+          erroMsg,
+          buildErrorPayload(erroMsg, null, text, historico, snapshot)
+        );
+        setLoading(false);
+        return;
       }
+
+      const assistantText = payload?.content || "Sem resposta da IA.";
+      setMessages((m) => [...m, { role: "assistant", content: assistantText }]);
     } catch (e) {
-      toast.error("Erro de conexão");
+      const erroMsg = e instanceof Error ? e.message : "Erro de conexão";
+      notifyAiError(
+        "Erro de conexão com a consultora.",
+        buildErrorPayload(erroMsg, null, text, historico, snapshot)
+      );
     } finally {
       setLoading(false);
     }
@@ -129,13 +183,14 @@ export const AdvisorChat = ({ snapshot }: Props) => {
           >
             {m.role === "assistant" ? (
               <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1">
-                <ReactMarkdown>{m.content || "..."}</ReactMarkdown>
+                <ReactMarkdown>{m.content}</ReactMarkdown>
               </div>
             ) : (
               m.content
             )}
           </div>
         ))}
+        {loading && <TypingIndicator />}
       </div>
 
       <div className="flex gap-2 border-t pt-3">

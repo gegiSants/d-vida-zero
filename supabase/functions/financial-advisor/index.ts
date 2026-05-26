@@ -10,8 +10,8 @@ serve(async (req) => {
 
   try {
     const { messages, snapshot } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY") ?? Deno.env.get("LOVABLE_API_KEY");
+    if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY not configured");
 
     const sys = `Você é uma consultora financeira pessoal brasileira, calorosa, direta e prática.
 Fale em português, use R$ para valores, nunca invente números — use apenas os dados abaixo.
@@ -21,17 +21,22 @@ Use markdown leve (negrito, listas curtas). Evite respostas longas demais.
 DADOS REAIS DA USUÁRIA:
 ${JSON.stringify(snapshot, null, 2)}`;
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GOOGLE_API_KEY}`,
+      },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        stream: true,
+        model: "gemini-3-flash-preview",
+        stream: false,
         messages: [{ role: "system", content: sys }, ...messages],
       }),
     });
 
     if (!resp.ok) {
+      const t = await resp.text();
+      console.error("Gemini error:", resp.status, t);
       if (resp.status === 429)
         return new Response(JSON.stringify({ error: "Muitas requisições, tente em instantes." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -40,15 +45,15 @@ ${JSON.stringify(snapshot, null, 2)}`;
         return new Response(JSON.stringify({ error: "Créditos da IA esgotados. Adicione em Settings → Workspace → Usage." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      const t = await resp.text();
-      console.error("Gateway error:", resp.status, t);
-      return new Response(JSON.stringify({ error: "Erro na IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: `Erro na IA: ${t}` }), {
+        status: resp.status || 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(resp.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    const data = await resp.json();
+    const content = data?.choices?.[0]?.message?.content ?? "";
+    return new Response(JSON.stringify({ content }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error(e);

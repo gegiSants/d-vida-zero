@@ -11,6 +11,8 @@ export interface DBPayment {
   ja_pago: number;
   origem: string;
   start_date: string;
+  categoria: string;
+  tipo_financeiro: string;
 }
 export interface DBExtra {
   id: string;

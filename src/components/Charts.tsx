@@ -10,11 +10,11 @@ import { useMemo } from "react";
 const COLORS = ["hsl(280 70% 55%)", "hsl(320 80% 65%)", "hsl(290 85% 70%)", "hsl(260 60% 60%)", "hsl(340 70% 65%)"];
 
 export const Charts = ({ payments }: { payments: DBPayment[] }) => {
-  const byTipo = useMemo(() => {
+  const byCategoria = useMemo(() => {
     const map = new Map<string, number>();
     payments.forEach((p) => {
       const falta = (p.total / p.parcelas) * (p.parcelas - p.ja_pago);
-      if (falta > 0) map.set(p.tipo, (map.get(p.tipo) || 0) + falta);
+      if (falta > 0) map.set(p.categoria, (map.get(p.categoria) || 0) + falta);
     });
     return Array.from(map, ([name, value]) => ({ name, value }));
   }, [payments]);
@@ -47,14 +47,14 @@ export const Charts = ({ payments }: { payments: DBPayment[] }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card className="p-6 border-0 shadow-soft">
-        <h3 className="text-base font-semibold mb-3">📊 Falta pagar por tipo</h3>
-        {byTipo.length === 0 ? (
+        <h3 className="text-base font-semibold mb-3">📊 Falta pagar por categoria</h3>
+        {byCategoria.length === 0 ? (
           <p className="text-sm text-muted-foreground py-12 text-center">Tudo quitado! 🎉</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={byTipo} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(e) => e.name}>
-                {byTipo.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              <Pie data={byCategoria} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(e) => e.name}>
+                {byCategoria.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
               <Tooltip formatter={(v: number) => brl(v)} />
             </PieChart>
