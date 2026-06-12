@@ -9,14 +9,12 @@ O D-Vida Zero foi criado para simplificar o controle financeiro do dia a dia, of
 ## Principais Funcionalidades
 
 * Controle de receitas e despesas
-* Gestão de pagamentos
+* Gestão de pagamentos e parcelas
 * Dashboard financeiro
 * Gráficos de evolução financeira
-* Relatórios de desempenho
 * Categorias personalizadas
-* Metas financeiras
-* Inteligência Artificial para análise de dados
-* Histórico de movimentações
+* Consultora IA com análise dos seus números reais
+* Timeline de quitação e compromisso mensal
 * Acompanhamento mensal e anual
 
 ## Tecnologias Utilizadas
@@ -31,42 +29,32 @@ O D-Vida Zero foi criado para simplificar o controle financeiro do dia a dia, of
 
 ### Back-end e Dados
 
-* Supabase
-* PostgreSQL
+* Supabase (Auth, PostgreSQL, Edge Functions)
+* Cloudflare Pages (deploy)
 
 ### Recursos Inteligentes
 
-* Integração com Inteligência Artificial para geração de insights financeiros
-
-## Benefícios
-
-* Melhor visualização dos gastos
-* Controle eficiente de pagamentos
-* Acompanhamento de metas financeiras
-* Tomada de decisão baseada em dados
-* Organização financeira simplificada
+* Integração com Inteligência Artificial (Gemini) para insights financeiros
 
 ## Como Executar
 
 ```bash
-git clone <repositorio>
-
+git clone https://github.com/gegiSants/d-vida-zero
+cd d-vida-zero
 npm install
-
+cp .env.example .env   # preencha com credenciais do Supabase
 npm run dev
 ```
 
-## Aprendizados
+Abre em `http://localhost:8080`.
 
-Durante o desenvolvimento deste projeto foram aplicados conceitos de:
+## Documentação completa
 
-* Arquitetura Front-end moderna
-* Gestão de estado
-* Integração com banco de dados
-* Dashboards financeiros
-* Visualização de dados
-* Integração com IA
-* Boas práticas de UX/UI
+- **[docs/PROJETO.md](docs/PROJETO.md)** — estrutura de pastas, stack, arquitetura, deploy e **auditoria de segurança**
+
+## Segredos
+
+Nunca commite `.env`. A chave de IA (`GOOGLE_API_KEY`) fica apenas nos **secrets** da Edge Function no Supabase.
 
 ## Status
 
