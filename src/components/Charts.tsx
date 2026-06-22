@@ -3,53 +3,45 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
-import { DBPayment } from "@/hooks/useFinanceData";
+import { DBExtra, DBPayment } from "@/hooks/useFinanceData";
 import { brl } from "@/lib/format";
 import { useMemo } from "react";
+import { saldoItem, projectNext12Months } from "@/lib/financeMetrics";
+import { labelCategoria } from "@/types/financeTaxonomy";
 
-const COLORS = ["hsl(280 70% 55%)", "hsl(320 80% 65%)", "hsl(290 85% 70%)", "hsl(260 60% 60%)", "hsl(340 70% 65%)"];
+const COLORS = ["hsl(24 42% 38%)", "hsl(220 18% 45%)", "hsl(24 38% 48%)", "hsl(220 12% 55%)", "hsl(24 32% 52%)"];
 
-export const Charts = ({ payments }: { payments: DBPayment[] }) => {
+interface Props {
+  payments: DBPayment[];
+  extras: DBExtra[];
+}
+
+export const Charts = ({ payments, extras }: Props) => {
   const byCategoria = useMemo(() => {
     const map = new Map<string, number>();
     payments.forEach((p) => {
-      const falta = (p.total / p.parcelas) * (p.parcelas - p.ja_pago);
-      if (falta > 0) map.set(p.categoria, (map.get(p.categoria) || 0) + falta);
+      const falta = saldoItem(p);
+      if (falta > 0) {
+        const label = labelCategoria(p.categoria ?? "outro");
+        map.set(label, (map.get(label) || 0) + falta);
+      }
     });
     return Array.from(map, ([name, value]) => ({ name, value }));
   }, [payments]);
 
-  const next12 = useMemo(() => {
-    const months: { mes: string; valor: number }[] = [];
-    const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      let total = 0;
-      payments.forEach((p) => {
-        const start = new Date(p.start_date);
-        const monthsSinceStart = (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth());
-        const parcelaIndex = monthsSinceStart;
-        // active if parcela ainda não foi paga e ainda dentro do plano
-        if (parcelaIndex >= p.ja_pago && parcelaIndex < p.parcelas) {
-          total += p.total / p.parcelas;
-        }
-      });
-      months.push({
-        mes: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
-        valor: Math.round(total),
-      });
-    }
-    return months;
-  }, [payments]);
+  const next12 = useMemo(
+    () => projectNext12Months(payments, extras),
+    [payments, extras]
+  );
 
-  if (payments.length === 0) return null;
+  if (payments.length === 0 && extras.length === 0) return null;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card className="p-6 border-0 shadow-soft">
-        <h3 className="text-base font-semibold mb-3">📊 Falta pagar por categoria</h3>
+        <h3 className="text-base font-semibold mb-3">Saldo em aberto por categoria</h3>
         {byCategoria.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">Tudo quitado! 🎉</p>
+          <p className="text-sm text-muted-foreground py-12 text-center">Nenhum saldo em aberto nas categorias ativas.</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
@@ -63,7 +55,8 @@ export const Charts = ({ payments }: { payments: DBPayment[] }) => {
       </Card>
 
       <Card className="p-6 border-0 shadow-soft">
-        <h3 className="text-base font-semibold mb-3">📅 Próximos 12 meses</h3>
+        <h3 className="text-base font-semibold mb-1">Projeção — próximos 12 meses</h3>
+        <p className="text-xs text-muted-foreground mb-3">Parcelas ativas + recorrentes + despesas fixas cadastradas</p>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={next12}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

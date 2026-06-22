@@ -50,7 +50,8 @@ Abre em `http://localhost:8080`.
 
 ## Documentação completa
 
-- **[docs/PROJETO.md](docs/PROJETO.md)** — estrutura de pastas, stack, arquitetura, deploy e **auditoria de segurança**
+- **[docs/PROJETO.md](docs/PROJETO.md)** — arquitetura, pastas, deploy e segurança
+- **[docs/BRIEF_IA_CONTADORA.md](docs/BRIEF_IA_CONTADORA.md)** — brief do produto para IA contadora/fiscal (métricas, regras, prompt)
 
 ## Segredos
 

@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bot, Send, Sparkles } from "lucide-react";
+import { Bot, Send, MessageSquare } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { FinanceStats } from "@/lib/financeMetrics";
+import { getAiSuggestions, UserLifeProfile } from "@/types/userProfile";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
 const TypingIndicator = () => (
-  <div className="flex items-center gap-1 p-3 rounded-2xl bg-secondary mr-8 w-fit" aria-label="Consultora digitando">
+  <div className="flex items-center gap-1 p-3 rounded-2xl bg-secondary mr-8 w-fit" aria-label="Gerando análise">
     {[0, 150, 300].map((delay) => (
       <span
         key={delay}
@@ -54,26 +56,24 @@ const notifyAiError = (mensagem: string, json: string) => {
       },
     },
   });
-  console.error("[Consultora IA]", mensagem, json);
+  console.error("[Análise orientada]", mensagem, json);
 };
 
 interface Props {
   snapshot: Record<string, unknown>;
+  profile: UserLifeProfile;
+  stats: FinanceStats;
 }
 
-const SUGGESTIONS = [
-  "Vale a pena quitar alguma dívida com minha reserva?",
-  "Em quantos meses fico sem dívidas?",
-  "Como organizar melhor meu salário?",
-];
-
-export const AdvisorChat = ({ snapshot }: Props) => {
+export const AdvisorChat = ({ snapshot, profile, stats }: Props) => {
   const { session } = useAuth();
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = getAiSuggestions(profile, stats);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -146,22 +146,30 @@ export const AdvisorChat = ({ snapshot }: Props) => {
   return (
     <Card className="p-6 border-0 shadow-soft flex flex-col" style={{ minHeight: 500 }}>
       <div className="flex items-center gap-2 mb-4">
-        <div className="h-9 w-9 rounded-xl bg-gradient-primary flex items-center justify-center text-primary-foreground">
+        <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
           <Bot className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold">Consultora IA</h2>
-          <p className="text-xs text-muted-foreground">Analisa seus números e te ajuda a decidir</p>
+          <h2 className="text-lg font-semibold">Análise orientada</h2>
+          <p className="text-xs text-muted-foreground">
+            {profile.perfil_completo
+              ? "Orientação personalizada ao seu perfil e dados cadastrados"
+              : "Complete o perfil de vida para análises mais precisas"}
+          </p>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground mb-4 border border-border rounded-md p-3 bg-muted/30">
+        Análise orientada com base nos dados cadastrados. Não constitui consultoria contábil, fiscal, jurídica ou recomendação de investimento. Decisões financeiras são de responsabilidade do usuário.
+      </p>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 mb-3 max-h-96 pr-1">
         {messages.length === 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-              <Sparkles className="h-3 w-3" /> Sugestões pra começar:
+              <MessageSquare className="h-3 w-3" /> Sugestões para o seu contexto:
             </div>
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <button
                 key={s}
                 onClick={() => send(s)}
@@ -177,7 +185,7 @@ export const AdvisorChat = ({ snapshot }: Props) => {
             key={i}
             className={`p-3 rounded-2xl text-sm ${
               m.role === "user"
-                ? "bg-gradient-primary text-primary-foreground ml-8"
+                ? "bg-primary text-primary-foreground ml-8"
                 : "bg-secondary mr-8"
             }`}
           >
@@ -201,7 +209,7 @@ export const AdvisorChat = ({ snapshot }: Props) => {
           onKeyDown={(e) => e.key === "Enter" && send(input)}
           disabled={loading}
         />
-        <Button onClick={() => send(input)} disabled={loading || !input.trim()} className="bg-gradient-primary">
+        <Button onClick={() => send(input)} disabled={loading || !input.trim()} className="bg-primary">
           <Send className="h-4 w-4" />
         </Button>
       </div>

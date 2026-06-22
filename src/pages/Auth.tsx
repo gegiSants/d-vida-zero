@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -39,7 +38,7 @@ const Auth = () => {
       return toast.error(error.message);
     }
     setSignupSuccess("Conta criada com sucesso. Agora faça login com seu email e senha.");
-    toast.success("Conta criada! Você já pode entrar 💜");
+    toast.success("Conta criada. Faça login para continuar.");
   };
 
   const signIn = async () => {
@@ -52,16 +51,11 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-gradient-soft flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8 border-0 shadow-glow">
+      <Card className="w-full max-w-md p-8 border shadow-soft">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/60 mb-3">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-medium text-primary">Controle financeiro</span>
-          </div>
-          <h1 className="text-2xl font-bold">
-            Bem-vinda de volta <span className="text-gradient">💜</span>
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">Entre para acessar suas finanças</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Mapa Zero</p>
+          <h1 className="text-2xl font-bold">Acesso ao sistema</h1>
+          <p className="text-sm text-muted-foreground mt-1">Entre com seu email e senha</p>
         </div>
 
         {signupSuccess && (
@@ -90,7 +84,7 @@ const Auth = () => {
               <Button
                 disabled={busy || !email || !password}
                 onClick={mode === "signin" ? signIn : signUp}
-                className="bg-gradient-primary hover:opacity-90 w-full"
+                className="bg-primary hover:bg-primary/90 w-full"
               >
                 {mode === "signin" ? "Entrar" : "Criar conta"}
               </Button>

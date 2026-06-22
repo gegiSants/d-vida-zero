@@ -2,17 +2,23 @@ import { Card } from "@/components/ui/card";
 import { DBPayment } from "@/hooks/useFinanceData";
 import { CalendarCheck } from "lucide-react";
 import { brl } from "@/lib/format";
+import {
+  isAssinatura,
+  isAtivo,
+  parcelaMensal,
+  parcelasRestantes,
+  dataTerminoEstimada,
+} from "@/lib/financeMetrics";
 
 export const Timeline = ({ payments }: { payments: DBPayment[] }) => {
+  const now = new Date();
   const items = payments
-    .filter((p) => p.parcelas - p.ja_pago > 0)
+    .filter((p) => isAtivo(p) && !isAssinatura(p))
     .map((p) => {
-      const start = new Date(p.start_date);
-      const endIdx = p.parcelas - 1;
-      const end = new Date(start.getFullYear(), start.getMonth() + endIdx, 1);
-      const parcelaMensal = p.total / p.parcelas;
-      const mesesRestantes = p.parcelas - p.ja_pago;
-      return { ...p, end, parcelaMensal, mesesRestantes };
+      const end = dataTerminoEstimada(p, now)!;
+      const parcelaMensalVal = parcelaMensal(p);
+      const restantes = parcelasRestantes(p);
+      return { ...p, end, parcelaMensal: parcelaMensalVal, mesesRestantes: restantes };
     })
     .sort((a, b) => a.end.getTime() - b.end.getTime());
 
@@ -22,13 +28,16 @@ export const Timeline = ({ payments }: { payments: DBPayment[] }) => {
     <Card className="p-6 border-0 shadow-soft">
       <div className="flex items-center gap-2 mb-4">
         <CalendarCheck className="h-5 w-5 text-primary" />
-        <h3 className="text-base font-semibold">Quando cada dívida acaba</h3>
+        <div>
+          <h3 className="text-base font-semibold">Quando cada dívida acaba</h3>
+          <p className="text-xs text-muted-foreground">Com base nas parcelas restantes (não na data de cadastro)</p>
+        </div>
       </div>
       <ol className="space-y-3">
         {items.map((it, idx) => (
           <li key={it.id} className="flex items-start gap-3">
             <div className="flex flex-col items-center pt-1">
-              <div className="h-2.5 w-2.5 rounded-full bg-gradient-primary" />
+              <div className="h-2.5 w-2.5 rounded-full bg-primary" />
               {idx < items.length - 1 && <div className="w-px flex-1 bg-border mt-1 min-h-8" />}
             </div>
             <div className="flex-1 pb-2">
@@ -42,7 +51,7 @@ export const Timeline = ({ payments }: { payments: DBPayment[] }) => {
                 </span>
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {it.mesesRestantes}× de {brl(it.parcelaMensal)} • libera {brl(it.parcelaMensal)}/mês depois
+                {it.mesesRestantes}× de {brl(it.parcelaMensal)} • {it.ja_pago}/{it.parcelas} pagas
               </div>
             </div>
           </li>
