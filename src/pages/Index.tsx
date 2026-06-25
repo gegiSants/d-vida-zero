@@ -13,6 +13,7 @@ import { Charts } from "@/components/Charts";
 import { Timeline } from "@/components/Timeline";
 import { AdvisorChat } from "@/components/AdvisorChat";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { FinancialAlerts } from "@/components/FinancialAlerts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -113,6 +114,7 @@ const Index = () => {
             <Button variant="outline" size="icon" onClick={() => setProfileOpen(true)} title="Editar perfil de vida">
               <Pencil className="h-4 w-4" />
             </Button>
+            {user?.email && <ChangePasswordDialog email={user.email} />}
             <AddPaymentDialog onAdd={fd.addPayment} />
             <Button variant="ghost" size="icon" onClick={() => signOut().then(() => navigate("/auth"))}>
               <LogOut className="h-4 w-4" />

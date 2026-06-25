@@ -9,17 +9,37 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
+const MIN_PASSWORD = 6;
+const redirectUrl = () => `${window.location.origin}/auth`;
+
+type View = "signin" | "signup" | "forgot" | "reset";
+
 const Auth = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [view, setView] = useState<View>("signin");
 
   useEffect(() => {
-    if (!loading && user) navigate("/", { replace: true });
-  }, [user, loading, navigate]);
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setView("reset");
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!loading && user && view !== "reset") {
+      navigate("/", { replace: true });
+    }
+  }, [user, loading, navigate, view]);
 
   const signUp = async () => {
     setBusy(true);
@@ -28,7 +48,7 @@ const Auth = () => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/` },
+      options: { emailRedirectTo: redirectUrl() },
     });
     setBusy(false);
     if (error) {
@@ -48,6 +68,141 @@ const Auth = () => {
     if (error) return toast.error(error.message);
     navigate("/", { replace: true });
   };
+
+  const requestPasswordReset = async () => {
+    if (!email.trim()) {
+      toast.error("Informe o email da sua conta.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: redirectUrl(),
+    });
+    setBusy(false);
+
+    if (error) {
+      if (error.message.toLowerCase().includes("rate limit")) {
+        return toast.error("Limite de emails atingido. Tente de novo em cerca de 1 hora.");
+      }
+      return toast.error(error.message);
+    }
+
+    setForgotSent(true);
+    toast.success("Se o email estiver cadastrado, você receberá um link em instantes.");
+  };
+
+  const saveNewPassword = async () => {
+    if (newPassword.length < MIN_PASSWORD) {
+      toast.error(`A senha deve ter pelo menos ${MIN_PASSWORD} caracteres.`);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("A confirmação não confere com a nova senha.");
+      return;
+    }
+
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setBusy(false);
+
+    if (error) return toast.error(error.message);
+
+    toast.success("Senha redefinida. Entrando no painel...");
+    navigate("/", { replace: true });
+  };
+
+  if (view === "reset") {
+    return (
+      <div className="min-h-screen bg-gradient-soft flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border shadow-soft">
+          <div className="text-center mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Mapa Zero</p>
+            <h1 className="text-2xl font-bold">Nova senha</h1>
+            <p className="text-sm text-muted-foreground mt-1">Defina sua nova senha de acesso</p>
+          </div>
+          <div className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label>Nova senha</Label>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Confirmar nova senha</Label>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repita a nova senha"
+              />
+            </div>
+            <Button
+              disabled={busy || !newPassword || !confirmPassword}
+              onClick={saveNewPassword}
+              className="bg-primary hover:bg-primary/90 w-full"
+            >
+              Salvar e entrar
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (view === "forgot") {
+    return (
+      <div className="min-h-screen bg-gradient-soft flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border shadow-soft">
+          <div className="text-center mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Mapa Zero</p>
+            <h1 className="text-2xl font-bold">Recuperar senha</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Enviaremos um link para o email cadastrado
+            </p>
+          </div>
+
+          {forgotSent ? (
+            <div className="space-y-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Se <strong>{email}</strong> estiver cadastrado, verifique sua caixa de entrada e o spam.
+                O link abre esta página para você definir uma nova senha.
+              </p>
+              <Button variant="outline" className="w-full" onClick={() => { setView("signin"); setForgotSent(false); }}>
+                Voltar ao login
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid gap-1.5">
+                <Label>Email</Label>
+                <Input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  placeholder="voce@email.com"
+                />
+              </div>
+              <Button
+                disabled={busy || !email}
+                onClick={requestPasswordReset}
+                className="bg-primary hover:bg-primary/90 w-full"
+              >
+                Enviar link de recuperação
+              </Button>
+              <Button variant="ghost" className="w-full" onClick={() => setView("signin")}>
+                Voltar ao login
+              </Button>
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-soft flex items-center justify-center p-4">
@@ -71,25 +226,50 @@ const Auth = () => {
             <TabsTrigger value="signup">Criar conta</TabsTrigger>
           </TabsList>
 
-          {(["signin", "signup"] as const).map((mode) => (
-            <TabsContent key={mode} value={mode} className="space-y-3">
-              <div className="grid gap-1.5">
-                <Label>Email</Label>
-                <Input value={email} onChange={(e) => setEmail(e.target.value)} type="text" placeholder="voce@email.com" />
-              </div>
-              <div className="grid gap-1.5">
+          <TabsContent value="signin" className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label>Email</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="voce@email.com" />
+            </div>
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
                 <Label>Senha</Label>
-                <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" />
+                <button
+                  type="button"
+                  onClick={() => setView("forgot")}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Esqueci minha senha
+                </button>
               </div>
-              <Button
-                disabled={busy || !email || !password}
-                onClick={mode === "signin" ? signIn : signUp}
-                className="bg-primary hover:bg-primary/90 w-full"
-              >
-                {mode === "signin" ? "Entrar" : "Criar conta"}
-              </Button>
-            </TabsContent>
-          ))}
+              <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" />
+            </div>
+            <Button
+              disabled={busy || !email || !password}
+              onClick={signIn}
+              className="bg-primary hover:bg-primary/90 w-full"
+            >
+              Entrar
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="signup" className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label>Email</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="voce@email.com" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Senha</Label>
+              <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" />
+            </div>
+            <Button
+              disabled={busy || !email || !password}
+              onClick={signUp}
+              className="bg-primary hover:bg-primary/90 w-full"
+            >
+              Criar conta
+            </Button>
+          </TabsContent>
         </Tabs>
       </Card>
     </div>
