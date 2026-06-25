@@ -27,7 +27,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: UserLifeProfile;
-  onSave: (patch: Partial<UserLifeProfile>) => Promise<void>;
+  onSave: (patch: Partial<UserLifeProfile>) => Promise<boolean>;
   onboarding?: boolean;
 }
 
@@ -55,9 +55,9 @@ export const UserProfileDialog = ({ open, onOpenChange, profile, onSave, onboard
   const submit = async () => {
     if (!form.momento_vida || !form.moradia_situacao) return;
     setSaving(true);
-    await onSave({ ...form, perfil_completo: true });
+    const ok = await onSave({ ...form, perfil_completo: true });
     setSaving(false);
-    onOpenChange(false);
+    if (ok) onOpenChange(false);
   };
 
   const canSave = Boolean(form.momento_vida && form.moradia_situacao);

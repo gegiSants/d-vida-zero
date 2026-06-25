@@ -2,6 +2,14 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { UserLifeProfile, EMPTY_LIFE_PROFILE } from "@/types/userProfile";
+import {
+  PAYMENT_COLUMNS,
+  EXTRA_COLUMNS,
+  PROFILE_COLUMNS,
+  ensureValidSession,
+  notifyDbError,
+} from "@/lib/supabaseApi";
+import { toast } from "sonner";
 
 export interface DBPayment {
   id: string;
@@ -54,14 +62,37 @@ export const useFinanceData = () => {
   const [extras, setExtras] = useState<DBExtra[]>([]);
   const [profile, setProfile] = useState<DBProfile>({ ...EMPTY_LIFE_PROFILE });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const session = await ensureValidSession();
+    if (!session) {
+      setLoadError("Sessão inválida. Faça login novamente.");
+      setLoading(false);
+      return;
+    }
+
     const [p, e, pr] = await Promise.all([
-      supabase.from("payments").select("*").order("created_at"),
-      supabase.from("extras").select("*").order("created_at"),
-      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      supabase.from("payments").select(PAYMENT_COLUMNS).order("created_at"),
+      supabase.from("extras").select(EXTRA_COLUMNS).order("created_at"),
+      supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", user.id).maybeSingle(),
     ]);
+
+    const errors = [p.error, e.error, pr.error].filter(Boolean);
+    if (errors.length > 0) {
+      const first = errors[0]!;
+      if (await notifyDbError(first, "Erro ao carregar dados")) return;
+      setLoadError(first.message);
+      setLoading(false);
+      return;
+    }
+
+    setLoadError(null);
     setPayments((p.data as DBPayment[]) || []);
     setExtras((e.data as DBExtra[]) || []);
     setProfile(mapProfile(pr.data as Record<string, unknown> | null));
@@ -69,15 +100,46 @@ export const useFinanceData = () => {
   }, [user]);
 
   useEffect(() => {
-    if (user) refresh();
+    if (user) {
+      setLoading(true);
+      refresh();
+    } else {
+      setPayments([]);
+      setExtras([]);
+      setProfile({ ...EMPTY_LIFE_PROFILE });
+      setLoading(false);
+    }
   }, [user, refresh]);
 
-  const addPayment = async (p: Omit<DBPayment, "id">) => {
-    if (!user) return;
-    const { error } = await supabase.from("payments").insert({ ...p, user_id: user.id });
-    if (!error) refresh();
+  const guardSession = async () => {
+    if (!user) {
+      toast.error("Faça login para continuar.");
+      return false;
+    }
+    const session = await ensureValidSession();
+    if (!session) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      return false;
+    }
+    return true;
   };
-  const updatePayment = async (id: string, patch: Partial<DBPayment>) => {
+
+  const addPayment = async (p: Omit<DBPayment, "id">): Promise<boolean> => {
+    if (!(await guardSession())) return false;
+
+    const { error } = await supabase.from("payments").insert({ ...p, user_id: user!.id });
+    if (error) {
+      await notifyDbError(error, "Não foi possível salvar o contrato");
+      return false;
+    }
+    toast.success("Contrato adicionado.");
+    await refresh();
+    return true;
+  };
+
+  const updatePayment = async (id: string, patch: Partial<DBPayment>): Promise<boolean> => {
+    if (!(await guardSession())) return false;
+
     const current = payments.find((p) => p.id === id);
     const nextJaPago = patch.ja_pago ?? current?.ja_pago ?? 0;
     const parcelas = patch.parcelas ?? current?.parcelas ?? 1;
@@ -89,37 +151,94 @@ export const useFinanceData = () => {
       finalPatch.encerrado_em = null;
     }
 
-    await supabase.from("payments").update(finalPatch).eq("id", id);
-    refresh();
+    const { error } = await supabase.from("payments").update(finalPatch).eq("id", id);
+    if (error) {
+      await notifyDbError(error, "Não foi possível atualizar");
+      return false;
+    }
+    await refresh();
+    return true;
   };
-  const removePayment = async (id: string) => {
-    await supabase.from("payments").delete().eq("id", id);
-    refresh();
+
+  const removePayment = async (id: string): Promise<boolean> => {
+    if (!(await guardSession())) return false;
+
+    const { error } = await supabase.from("payments").delete().eq("id", id);
+    if (error) {
+      await notifyDbError(error, "Não foi possível remover");
+      return false;
+    }
+    toast.success("Contrato removido.");
+    await refresh();
+    return true;
   };
+
   const addExtra = async (
     item: string,
     valor_mensal: number,
     categoria = "outro",
     natureza_financeira = "essencial"
-  ) => {
-    if (!user) return;
-    await supabase.from("extras").insert({ item, valor_mensal, categoria, natureza_financeira, user_id: user.id });
-    refresh();
+  ): Promise<boolean> => {
+    if (!(await guardSession())) return false;
+
+    const { error } = await supabase.from("extras").insert({
+      item,
+      valor_mensal,
+      categoria,
+      natureza_financeira,
+      user_id: user!.id,
+    });
+    if (error) {
+      await notifyDbError(error, "Não foi possível salvar a despesa");
+      return false;
+    }
+    await refresh();
+    return true;
   };
-  const removeExtra = async (id: string) => {
-    await supabase.from("extras").delete().eq("id", id);
-    refresh();
+
+  const removeExtra = async (id: string): Promise<boolean> => {
+    if (!(await guardSession())) return false;
+
+    const { error } = await supabase.from("extras").delete().eq("id", id);
+    if (error) {
+      await notifyDbError(error, "Não foi possível remover a despesa");
+      return false;
+    }
+    await refresh();
+    return true;
   };
-  const saveProfile = async (patch: Partial<DBProfile>) => {
-    if (!user) return;
+
+  const saveProfile = async (patch: Partial<DBProfile>): Promise<boolean> => {
+    if (!(await guardSession())) return false;
+
     const next = { ...profile, ...patch };
     setProfile(next);
-    await supabase.from("profiles").upsert({ id: user.id, ...next, updated_at: new Date().toISOString() });
+
+    const { error } = await supabase.from("profiles").upsert({
+      id: user!.id,
+      ...next,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      await notifyDbError(error, "Não foi possível salvar o perfil");
+      return false;
+    }
+    return true;
   };
 
   return {
-    payments, extras, profile, loading,
-    addPayment, updatePayment, removePayment,
-    addExtra, removeExtra, saveProfile, refresh,
+    payments,
+    extras,
+    profile,
+    loading,
+    loadError,
+    addPayment,
+    updatePayment,
+    removePayment,
+    addExtra,
+    removeExtra,
+    saveProfile,
+    refresh,
   };
 };

@@ -126,6 +126,16 @@ const Index = () => {
           Painel de apoio à decisão. Não substitui consultoria contábil, fiscal ou planejamento financeiro formal.
         </p>
 
+        {fd.loadError && (
+          <Card className="p-4 mb-4 border-destructive/40 bg-destructive/5 text-sm">
+            <p className="font-medium text-destructive">Não foi possível carregar seus dados</p>
+            <p className="text-muted-foreground mt-1">{fd.loadError}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => fd.refresh()}>
+              Tentar novamente
+            </Button>
+          </Card>
+        )}
+
         <FinancialAlerts profile={fd.profile} stats={stats} />
 
         {/* Saúde financeira — destaque */}

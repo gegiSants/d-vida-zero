@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DBPayment } from "@/hooks/useFinanceData";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import {
 } from "@/types/financeTaxonomy";
 
 interface Props {
-  onAdd: (p: Omit<DBPayment, "id">) => void;
+  onAdd: (p: Omit<DBPayment, "id">) => Promise<boolean>;
 }
 
 const empty = {
@@ -77,12 +77,15 @@ export const AddPaymentDialog = ({ onAdd }: Props) => {
     }
   };
 
-  const submit = () => {
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
     if (!form.item || !form.total) return;
     if (!recorrente && !form.parcelas) return;
     const natureza = form.natureza_financeira as NaturezaFinanceira;
     const tipoObrigacao = form.tipo_obrigacao as TipoObrigacao;
-    onAdd({
+    setSaving(true);
+    const ok = await onAdd({
       item: form.item,
       tipo: syncLegacyTipo(tipoObrigacao),
       tipo_obrigacao: tipoObrigacao,
@@ -96,8 +99,11 @@ export const AddPaymentDialog = ({ onAdd }: Props) => {
       natureza_financeira: natureza,
       start_date: new Date().toISOString().slice(0, 10),
     });
-    setForm(empty);
-    setOpen(false);
+    setSaving(false);
+    if (ok) {
+      setForm(empty);
+      setOpen(false);
+    }
   };
 
   return (
@@ -110,6 +116,7 @@ export const AddPaymentDialog = ({ onAdd }: Props) => {
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Adicionar contrato</DialogTitle>
+          <DialogDescription className="sr-only">Formulário para cadastrar um novo contrato ou despesa parcelada.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-2">
           <div className="grid gap-1.5">
@@ -249,8 +256,8 @@ export const AddPaymentDialog = ({ onAdd }: Props) => {
           )}
         </div>
         <DialogFooter>
-          <Button onClick={submit} className="bg-primary hover:bg-primary/90 w-full">
-            Adicionar
+          <Button onClick={submit} disabled={saving} className="bg-primary hover:bg-primary/90 w-full">
+            {saving ? "Salvando..." : "Adicionar"}
           </Button>
         </DialogFooter>
       </DialogContent>
