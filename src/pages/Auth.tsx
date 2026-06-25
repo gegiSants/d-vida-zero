@@ -9,6 +9,24 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
+const mapRecoverError = (error: { message?: string; code?: string }) => {
+  const msg = (error.message ?? "").toLowerCase();
+  const code = error.code ?? "";
+
+  if (msg.includes("rate limit") || code === "over_email_send_rate_limit") {
+    return "Limite de emails atingido (2/hora no plano padrão). Aguarde cerca de 1 hora.";
+  }
+  if (
+    code === "email_address_not_authorized" ||
+    msg.includes("not authorized") ||
+    msg.includes("error sending recovery email") ||
+    code === "unexpected_failure"
+  ) {
+    return "O Supabase não envia email de recuperação para usuários finais no SMTP padrão — só para emails da equipe do projeto. Configure SMTP customizado (ex.: Resend, grátis) em Authentication → SMTP, ou use a troca de senha pelo ícone de chave estando logada.";
+  }
+  return error.message ?? "Não foi possível enviar o email de recuperação.";
+};
+
 const MIN_PASSWORD = 6;
 const redirectUrl = () => `${window.location.origin}/auth`;
 
@@ -81,10 +99,7 @@ const Auth = () => {
     setBusy(false);
 
     if (error) {
-      if (error.message.toLowerCase().includes("rate limit")) {
-        return toast.error("Limite de emails atingido. Tente de novo em cerca de 1 hora.");
-      }
-      return toast.error(error.message);
+      return toast.error(mapRecoverError(error), { duration: 12000 });
     }
 
     setForgotSent(true);
@@ -163,6 +178,9 @@ const Auth = () => {
             <h1 className="text-2xl font-bold">Recuperar senha</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Enviaremos um link para o email cadastrado
+            </p>
+            <p className="text-xs text-muted-foreground mt-2 max-w-sm mx-auto">
+              Requer SMTP configurado no Supabase. Sem isso, use o ícone de chave no painel (logada) ou peça suporte.
             </p>
           </div>
 
